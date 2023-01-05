@@ -12,7 +12,6 @@ __all__ = ['multimode', 'singlemode']
 from functools import wraps
 from typing import Dict, Tuple, Union, cast, overload
 
-import jax.numpy as jnp
 from .typing_ import (
     Model,
     SCoo,
@@ -25,6 +24,7 @@ from .typing_ import (
     is_sdense,
     is_sdict,
     is_singlemode,
+    _consolidate_sdense,
 )
 from .utils import (
     block_diag,
@@ -32,6 +32,13 @@ from .utils import (
     validate_multimode,
     validate_not_mixedmode,
 )
+
+try:
+    import jax.numpy as jnp
+    JAX_AVAILABLE = True
+except ImportError:
+    import numpy as jnp
+    JAX_AVAILABLE = False
 
 # Internal Cell
 
@@ -223,4 +230,4 @@ def _singlemode_sdense(sdense: SDense, mode: str = "te") -> SDense:
         for port, idx in port_map.items()
         if port.endswith(f"@{mode}")
     }
-    return Sx, port_map
+    return _consolidate_sdense(Sx, port_map)

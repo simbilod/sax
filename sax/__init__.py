@@ -7,19 +7,21 @@ from __future__ import annotations
 __all__ = []
 
 # Internal Cell
-__author__ = "Floris Laporte"
-__version__ = "0.6.0"
-
-# Internal Cell
 #nbdev_comment from __future__ import annotations
 
-# Cell
+__author__ = "Floris Laporte"
+__version__ = "0.8.5"
 
+# Cell
 from functools import partial as partial
 from math import pi as pi
 
-from flax.core.frozen_dict import FrozenDict as FrozenDict
 from scipy.constants import c as c
+
+try:
+    from flax.core.frozen_dict import FrozenDict as FrozenDict
+except ImportError:
+    FrozenDict = dict
 
 # Cell
 
@@ -28,13 +30,9 @@ from .typing_ import (
     Array as Array,
     ComplexFloat as ComplexFloat,
     Float as Float,
-    Instance as Instance,
-    Instances as Instances,
-    LogicalNetlist as LogicalNetlist,
     Model as Model,
     ModelFactory as ModelFactory,
     Models as Models,
-    Netlist as Netlist,
     SCoo as SCoo,
     SDense as SDense,
     SDict as SDict,
@@ -43,12 +41,10 @@ from .typing_ import (
     is_complex as is_complex,
     is_complex_float as is_complex_float,
     is_float as is_float,
-    is_instance as is_instance,
     is_mixedmode as is_mixedmode,
     is_model as is_model,
     is_model_factory as is_model_factory,
     is_multimode as is_multimode,
-    is_netlist as is_netlist,
     is_scoo as is_scoo,
     is_sdense as is_sdense,
     is_sdict as is_sdict,
@@ -89,14 +85,6 @@ from .utils import (
 
 # Cell
 
-from sax import caching as caching
-from .caching import (
-    cache as cache,
-    cache_clear as cache_clear,
-)
-
-# Cell
-
 from sax import multimode as multimode
 from .multimode import (
     multimode as multimode,
@@ -110,30 +98,17 @@ from .models import get_models as get_models, passthru as passthru
 
 # Cell
 
-from sax import netlist as netlist
-from .netlist import (
-    logical_netlist as logical_netlist,
-    netlist as netlist,
-    netlist_from_yaml as netlist_from_yaml,
-)
+from .netlist import netlist as netlist
+from .netlist import load_netlist as load_netlist
+from .netlist import load_recursive_netlist as load_recursive_netlist
 
 # Cell
 
-from sax import circuit as circuit
-from .circuit import (
-    circuit as circuit,
-    circuit_from_gdsfactory as circuit_from_gdsfactory,
-    circuit_from_netlist as circuit_from_netlist,
-    circuit_from_yaml as circuit_from_yaml,
-)
+from .circuit import circuit as circuit
 
 # Cell
 
 from sax import backends as backends
-
-# Cell
-
-from sax import nn as nn
 
 # Cell
 

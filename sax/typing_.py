@@ -5,22 +5,30 @@ from __future__ import annotations
 
 
 __all__ = ['Array', 'Int', 'Float', 'ComplexFloat', 'Settings', 'SDict', 'SCoo', 'SDense', 'SType', 'Model',
-           'ModelFactory', 'GeneralModel', 'Models', 'Instance', 'GeneralInstance', 'Instances', 'Netlist',
-           'LogicalNetlist', 'is_float', 'is_complex', 'is_complex_float', 'is_sdict', 'is_scoo', 'is_sdense',
-           'is_model', 'is_model_factory', 'validate_model', 'is_instance', 'is_netlist', 'is_stype', 'is_singlemode',
-           'is_multimode', 'is_mixedmode', 'sdict', 'scoo', 'sdense', 'modelfactory']
+           'ModelFactory', 'Models', 'is_float', 'is_complex', 'is_complex_float', 'is_sdict', 'is_scoo', 'is_sdense',
+           'is_model', 'is_model_factory', 'validate_model', 'is_stype', 'is_singlemode', 'is_multimode',
+           'is_mixedmode', 'sdict', 'scoo', 'sdense', 'modelfactory']
 
 # Cell
 #nbdev_comment from __future__ import annotations
-
 import functools
 import inspect
 from collections.abc import Callable as CallableABC
-from typing import Any, Callable, Dict, Tuple, TypedDict, Union, cast, overload
+from typing import Any, Callable, Dict, Tuple, Union, cast, overload
+try:
+    from typing import TypedDict
+except ImportError: # python<3.8
+    from typing_extensions import TypedDict
 
-import jax.numpy as jnp
 import numpy as np
 from natsort import natsorted
+
+try:
+    import jax.numpy as jnp
+    JAX_AVAILABLE = True
+except ImportError:
+    import numpy as jnp
+    JAX_AVAILABLE = False
 
 # Cell
 Array = Union[jnp.ndarray, np.ndarray]
@@ -56,47 +64,7 @@ Model = Callable[..., SType]
 ModelFactory = Callable[..., Model]
 
 # Cell
-GeneralModel = Union[Model, "LogicalNetlist"]
-
-# Cell
-Models = Dict[str, GeneralModel]
-
-# Cell
-Instance = TypedDict(
-    "Instance",
-    {
-        "component": str,
-        "settings": Settings,
-    },
-)
-
-# Cell
-GeneralInstance = Union[str, Instance, "LogicalNetlist", "Netlist"]
-
-# Cell
-Instances = Union[Dict[str, str], Dict[str, GeneralInstance]]
-
-# Cell
-
-Netlist = TypedDict(
-    "Netlist",
-    {
-        "instances": Instances,
-        "connections": Dict[str, str],
-        "ports": Dict[str, str],
-    },
-)
-
-# Cell
-
-LogicalNetlist = TypedDict(
-    "LogicalNetlist",
-    {
-        "instances": Dict[str, str],
-        "connections": Dict[str, str],
-        "ports": Dict[str, str],
-    },
-)
+Models = Dict[str, Model]
 
 # Cell
 def is_float(x: Any) -> bool:
@@ -150,7 +118,7 @@ def is_model(model: Any) -> bool:
     except ValueError:
         return False
     for param in sig.parameters.values():
-        if param.default == inspect.Parameter.empty:
+        if param.default is inspect.Parameter.empty:
             return False  # a proper SAX model does not have any positional arguments.
     if _is_callable_annotation(sig.return_annotation):  # model factory
         return False
@@ -160,7 +128,6 @@ def _is_callable_annotation(annotation: Any) -> bool:
     """check if an annotation is `Callable`-like"""
     if isinstance(annotation, str):
         # happens when
-        # from __future__ import annotations
         # was imported at the top of the file...
         return annotation.startswith("Callable") or annotation.endswith("Model")
         # TODO: this is not a very robust check...
@@ -191,26 +158,6 @@ def validate_model(model: Callable):
             f"model '{model}' takes positional arguments {', '.join(positional_arguments)} "
             "and hence is not a valid SAX Model! A SAX model should ONLY take keyword arguments (or no arguments at all)."
         )
-
-# Cell
-def is_instance(instance: Any) -> bool:
-    """check if a dictionary is an instance"""
-    if not isinstance(instance, dict):
-        return False
-    return "component" in instance
-
-# Cell
-def is_netlist(netlist: Any) -> bool:
-    """check if a dictionary is a netlist"""
-    if not isinstance(netlist, dict):
-        return False
-    if not "instances" in netlist:
-        return False
-    if not "connections" in netlist:
-        return False
-    if not "ports" in netlist:
-        return False
-    return True
 
 # Cell
 def is_stype(stype: Any) -> bool:
@@ -339,8 +286,14 @@ def scoo(S: Union[Callable, SType]) -> Union[Callable, SCoo]:
 
     return S
 
+def _consolidate_sdense(S, pm):
+    idxs = list(pm.values())
+    S = S[..., idxs, :][..., :, idxs]
+    pm = {p: i for i, p in enumerate(pm)}
+    return S, pm
 
 def _sdense_to_scoo(S: Array, ports_map: Dict[str, int]) -> SCoo:
+    S, ports_map = _consolidate_sdense(S, ports_map)
     Sj, Si = jnp.meshgrid(jnp.arange(S.shape[-1]), jnp.arange(S.shape[-2]))
     return Si.ravel(), Sj.ravel(), S.reshape(*S.shape[:-2], -1), ports_map
 
@@ -357,7 +310,6 @@ def _sdict_to_scoo(sdict: SDict) -> SCoo:
     return Si, Sj, Sx, ports_map
 
 # Internal Cell
-
 
 @overload
 def sdense(S: Callable) -> Callable:
@@ -399,9 +351,11 @@ def _scoo_to_sdense(
 ) -> SDense:
     n_col = len(ports_map)
     S = jnp.zeros((*Sx.shape[:-1], n_col, n_col), dtype=complex)
-    S = S.at[..., Si, Sj].add(Sx)
+    if JAX_AVAILABLE:
+        S = S.at[..., Si, Sj].add(Sx)
+    else:
+        S[..., Si, Sj] = Sx
     return S, ports_map
-
 
 def _sdict_to_sdense(sdict: SDict) -> SDense:
     Si, Sj, Sx, ports_map = _sdict_to_scoo(sdict)
